@@ -1,6 +1,6 @@
 {
   "name": "supermail",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Unified email interface for Gmail, Microsoft Graph, and IMAP/SMTP",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
