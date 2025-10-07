@@ -47,4 +47,3 @@ export { SuperMail } from './SuperMail';
 
 export * from './errors';
 export * from './types';
-

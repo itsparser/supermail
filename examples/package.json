@@ -6,10 +6,12 @@
   "scripts": {
     "gmail": "tsx gmail-example.ts",
     "microsoft": "tsx microsoft-example.ts",
+    "imap": "tsx imap-example.ts",
     "complete": "tsx complete-example.ts",
     "complete:gmail": "PROVIDER=gmail tsx complete-example.ts",
     "complete:microsoft": "PROVIDER=microsoft tsx complete-example.ts",
-    "generate:google-token": "tsx generate-google-token.ts"
+    "generate:google-token": "tsx generate-google-token.ts",
+    "generate:microsoft-token": "tsx generate-microsoft-token.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5"

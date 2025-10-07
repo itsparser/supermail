@@ -56,13 +56,13 @@ export interface ListEmailsResponse {
 }
 
 export interface ProviderConfig {
-  type: 'gmail' | 'microsoft';
+  type: 'gmail' | 'microsoft' | 'imap';
 }
 
 export interface GmailConfig extends ProviderConfig {
   type: 'gmail';
-  credentials: any;
-  token?: any;
+  credentials: Record<string, unknown>;
+  token?: Record<string, unknown>;
 }
 
 export interface MicrosoftConfig extends ProviderConfig {
@@ -73,7 +73,27 @@ export interface MicrosoftConfig extends ProviderConfig {
   accessToken?: string;
 }
 
-export type EmailProviderConfig = GmailConfig | MicrosoftConfig;
+export interface ImapConfig extends ProviderConfig {
+  type: 'imap';
+  imap: {
+    user: string;
+    password: string;
+    host: string;
+    port: number;
+    tls: boolean;
+  };
+  smtp: {
+    host: string;
+    port: number;
+    secure?: boolean;
+    auth: {
+      user: string;
+      pass: string;
+    };
+  };
+}
+
+export type EmailProviderConfig = GmailConfig | MicrosoftConfig | ImapConfig;
 
 export interface EmailFolder {
   id: string;

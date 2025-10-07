@@ -58,13 +58,100 @@ This directory contains working examples demonstrating how to use SuperMail with
 
    ### Microsoft Graph Setup
 
-   - Go to [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
-   - Register an application
-   - Add Mail.ReadWrite and Mail.Send permissions
-   - Add your credentials to `.env`
-   - Run OAuth flow to get access token
+   **Step 1: Register Application in Azure Portal**
+   - Go to [Azure App Registrations](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+   - Click "New registration"
+   - Name: Your app name (e.g., "SuperMail Integration")
+   - Supported account types: "Accounts in any organizational directory and personal Microsoft accounts"
+   - Redirect URI:
+     - Platform: **Web**
+     - URI: `http://localhost:3000/oauth2callback`
+
+   **Step 2: Add API Permissions**
+   - Go to "API permissions" → "Add a permission" → "Microsoft Graph" → "Delegated permissions"
+   - Add these permissions:
+     - `Mail.Read`
+     - `Mail.ReadWrite`
+     - `Mail.Send`
+     - `MailboxSettings.Read`
+   - Click "Add permissions"
+
+   **Step 3: Create Client Secret**
+   - Go to "Certificates & secrets" → "New client secret"
+   - Description: SuperMail Token
+   - Expires: Choose duration (recommended: 24 months)
+   - **Copy the secret VALUE immediately** - it won't be shown again!
+
+   **Step 4: Get Your IDs**
+   - From the "Overview" page, copy:
+     - **Application (client) ID**
+     - **Directory (tenant) ID**
+
+   **Step 5: Add to .env**
+
+   ```env
+   MICROSOFT_CLIENT_ID=your_application_client_id
+   MICROSOFT_CLIENT_SECRET=your_client_secret_value
+   MICROSOFT_TENANT_ID=common  # or your specific tenant ID
+   ```
+
+   **Step 6: Generate Access Token**
+
+   ```bash
+   npm run generate:microsoft-token
+   ```
+
+   This will:
+   - Open your browser for Microsoft sign-in
+   - Start a local server to receive the OAuth callback
+   - Display your access token
+   - Copy the token to your `.env` file
+
+   The script generates:
+   - `MICROSOFT_ACCESS_TOKEN` - Valid for ~60 minutes
+
+   **Scopes Requested:**
+   - `Mail.Read` - Read emails
+   - `Mail.ReadWrite` - Modify emails
+   - `Mail.Send` - Send emails
+   - `MailboxSettings.Read` - Read mailbox settings
+   - `offline_access` - Get refresh token for automatic renewal
 
 ## Token Generation
+
+### Microsoft Graph Token Generator
+
+Generate OAuth tokens for Microsoft Graph (Outlook) integration:
+
+```bash
+npm run generate:microsoft-token
+```
+
+**Prerequisites:**
+
+- `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, and `MICROSOFT_TENANT_ID` in your `.env` file
+
+**How it works:**
+
+1. The script starts a local server on port 3000
+2. Opens an authorization URL for Microsoft sign-in
+3. You sign in with your Microsoft account and authorize the app
+4. Microsoft redirects to the local server with an authorization code
+5. The script exchanges the code for access tokens
+6. Tokens are displayed in the terminal - copy them to your `.env` file
+
+**Output:**
+
+```env
+MICROSOFT_ACCESS_TOKEN=eyJ0eXAiOiJKV1QiLCJub...
+MICROSOFT_REFRESH_TOKEN=0.AXoA...  # Optional, if offline_access was granted
+```
+
+**Notes:**
+- Access tokens expire after ~60 minutes
+- Refresh tokens can be used to get new access tokens automatically
+- Use `tenant_id=common` for personal and work/school accounts
+- Use your specific tenant ID for organization-only access
 
 ### Google OAuth Token Generator
 

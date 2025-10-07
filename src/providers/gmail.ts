@@ -3,12 +3,15 @@
  */
 
 import { google } from 'googleapis';
+import { gmail_v1 } from 'googleapis';
+import { OAuth2Client } from 'google-auth-library';
 import { normalizeError } from '../errors';
 import { IEmailProvider } from '../provider';
 import {
   AddLabelsOptions,
   BatchOperationOptions,
   EmailAddress,
+  EmailAttachment,
   EmailFolder,
   EmailLabel,
   EmailMessage,
@@ -20,15 +23,32 @@ import {
   SendEmailOptions,
 } from '../types';
 
+// Gmail API type aliases from googleapis
+type GmailMessage = gmail_v1.Schema$Message;
+type GmailMessagePart = gmail_v1.Schema$MessagePart;
+type GmailMessagePartHeader = gmail_v1.Schema$MessagePartHeader;
+type GmailLabel = gmail_v1.Schema$Label;
+
+interface GmailLabelCreateRequest {
+  name: string;
+  labelListVisibility: string;
+  messageListVisibility: string;
+  color?: {
+    backgroundColor: string;
+    textColor: string;
+  };
+}
+
 export class GmailProvider implements IEmailProvider {
-  private gmail: any;
-  private auth: any;
+  private gmail: gmail_v1.Gmail;
+  private auth: OAuth2Client;
 
   constructor(private config: GmailConfig) {
+    const credentials = config.credentials as Record<string, unknown>;
     this.auth = new google.auth.OAuth2(
-      config.credentials.client_id,
-      config.credentials.client_secret,
-      config.credentials.redirect_uri
+      credentials.client_id as string,
+      credentials.client_secret as string,
+      credentials.redirect_uri as string
     );
 
     if (config.token) {
@@ -54,11 +74,11 @@ export class GmailProvider implements IEmailProvider {
         },
       });
 
-      // Gmail API doesn't return the full message payload on send, 
+      // Gmail API doesn't return the full message payload on send,
       // so we construct the response from what we sent
       return {
-        id: response.data.id,
-        threadId: response.data.threadId,
+        id: response.data.id ?? undefined,
+        threadId: response.data.threadId ?? undefined,
         subject: options.subject,
         to: options.to,
         cc: options.cc,
@@ -89,15 +109,17 @@ export class GmailProvider implements IEmailProvider {
 
       if (response.data.messages) {
         for (const msg of response.data.messages) {
-          const fullMessage = await this.getEmail(msg.id);
-          messages.push(fullMessage);
+          if (msg.id) {
+            const fullMessage = await this.getEmail(msg.id);
+            messages.push(fullMessage);
+          }
         }
       }
 
       return {
         messages,
-        nextPageToken: response.data.nextPageToken,
-        totalCount: response.data.resultSizeEstimate,
+        nextPageToken: response.data.nextPageToken ?? undefined,
+        totalCount: response.data.resultSizeEstimate ?? undefined,
       };
     } catch (error) {
       throw normalizeError(error, 'gmail');
@@ -161,10 +183,13 @@ export class GmailProvider implements IEmailProvider {
     try {
       const originalMessage = await this.getEmail(emailId);
 
-      const message = this.createMimeMessage({
-        ...options,
-        subject: `Re: ${originalMessage.subject}`,
-      }, originalMessage.threadId);
+      const message = this.createMimeMessage(
+        {
+          ...options,
+          subject: `Re: ${originalMessage.subject}`,
+        },
+        originalMessage.threadId
+      );
 
       const encodedMessage = Buffer.from(message)
         .toString('base64')
@@ -183,8 +208,8 @@ export class GmailProvider implements IEmailProvider {
       // Gmail API doesn't return the full message payload on send,
       // so we construct the response from what we sent
       return {
-        id: response.data.id,
-        threadId: response.data.threadId,
+        id: response.data.id ?? undefined,
+        threadId: response.data.threadId ?? undefined,
         subject: `Re: ${originalMessage.subject}`,
         to: options.to,
         cc: options.cc,
@@ -212,7 +237,9 @@ export class GmailProvider implements IEmailProvider {
       `Subject: ${options.subject}`,
       'MIME-Version: 1.0',
       `Content-Type: ${contentType}`,
-    ].filter(Boolean).join('\r\n');
+    ]
+      .filter(Boolean)
+      .join('\r\n');
 
     let body = `${headers}\r\n\r\n`;
 
@@ -243,9 +270,10 @@ export class GmailProvider implements IEmailProvider {
         body += 'Content-Transfer-Encoding: base64\r\n';
         body += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n\r\n`;
 
-        const content = typeof attachment.content === 'string'
-          ? Buffer.from(attachment.content).toString('base64')
-          : attachment.content.toString('base64');
+        const content =
+          typeof attachment.content === 'string'
+            ? Buffer.from(attachment.content).toString('base64')
+            : attachment.content.toString('base64');
 
         body += `${content}\r\n\r\n`;
       }
@@ -286,21 +314,22 @@ export class GmailProvider implements IEmailProvider {
     return parts.join(' ');
   }
 
-  private convertGmailMessage(gmailMsg: any): EmailMessage {
+  private convertGmailMessage(gmailMsg: GmailMessage): EmailMessage {
     const headers = gmailMsg.payload?.headers || [];
     const getHeader = (name: string) =>
-      headers.find((h: any) => h.name.toLowerCase() === name.toLowerCase())?.value;
+      headers.find((h: GmailMessagePartHeader) => h.name?.toLowerCase() === name.toLowerCase())
+        ?.value;
 
     return {
-      id: gmailMsg.id,
-      threadId: gmailMsg.threadId,
+      id: gmailMsg.id ?? undefined,
+      threadId: gmailMsg.threadId ?? undefined,
       subject: getHeader('subject') || '',
-      from: this.parseEmailAddress(getHeader('from')),
-      to: this.parseEmailAddresses(getHeader('to')),
-      cc: this.parseEmailAddresses(getHeader('cc')),
-      body: this.extractBody(gmailMsg.payload),
-      attachments: this.extractAttachments(gmailMsg.payload),
-      date: new Date(parseInt(gmailMsg.internalDate)),
+      from: this.parseEmailAddress(getHeader('from') ?? undefined),
+      to: this.parseEmailAddresses(getHeader('to') ?? undefined),
+      cc: this.parseEmailAddresses(getHeader('cc') ?? undefined),
+      body: gmailMsg.payload ? this.extractBody(gmailMsg.payload) : '',
+      attachments: gmailMsg.payload ? this.extractAttachments(gmailMsg.payload) : undefined,
+      date: gmailMsg.internalDate ? new Date(parseInt(gmailMsg.internalDate)) : undefined,
       isRead: !gmailMsg.labelIds?.includes('UNREAD'),
       labels: gmailMsg.labelIds || [],
     };
@@ -319,13 +348,16 @@ export class GmailProvider implements IEmailProvider {
   private parseEmailAddresses(addrs?: string): EmailAddress[] {
     if (!addrs) return [];
 
-    return addrs.split(',').map(addr => {
-      const parsed = this.parseEmailAddress(addr.trim());
-      return parsed!;
-    }).filter(Boolean);
+    return addrs
+      .split(',')
+      .map(addr => {
+        const parsed = this.parseEmailAddress(addr.trim());
+        return parsed!;
+      })
+      .filter(Boolean);
   }
 
-  private extractBody(payload: any): string {
+  private extractBody(payload: GmailMessagePart): string {
     if (payload.body?.data) {
       return Buffer.from(payload.body.data, 'base64').toString('utf-8');
     }
@@ -346,16 +378,18 @@ export class GmailProvider implements IEmailProvider {
     return '';
   }
 
-  private extractAttachments(payload: any): any[] {
-    const attachments: any[] = [];
+  private extractAttachments(payload: GmailMessagePart): EmailAttachment[] {
+    const attachments: EmailAttachment[] = [];
 
-    const processPayload = (part: any) => {
+    const processPayload = (part: GmailMessagePart) => {
       if (part.filename && part.body?.attachmentId) {
         attachments.push({
           filename: part.filename,
           contentType: part.mimeType || 'application/octet-stream',
-          size: part.body.size,
-          attachmentId: part.body.attachmentId,
+          size: part.body.size ?? undefined,
+          // Gmail requires a separate API call to fetch attachment content
+          // We store the attachmentId as content for later retrieval
+          content: part.body.attachmentId,
         });
       }
 
@@ -377,13 +411,14 @@ export class GmailProvider implements IEmailProvider {
         userId: 'me',
       });
 
-      return response.data.labels
-        .filter((label: any) => label.type === 'system')
-        .map((label: any) => ({
-          id: label.id,
-          name: label.name,
-          unreadCount: label.messagesUnread,
-          totalCount: label.messagesTotal,
+      const labels = response.data.labels || [];
+      return labels
+        .filter((label: GmailLabel) => label.type === 'system')
+        .map((label: GmailLabel) => ({
+          id: label.id!,
+          name: label.name!,
+          unreadCount: label.messagesUnread ?? undefined,
+          totalCount: label.messagesTotal ?? undefined,
         }));
     } catch (error) {
       throw normalizeError(error, 'gmail');
@@ -398,10 +433,10 @@ export class GmailProvider implements IEmailProvider {
       });
 
       return {
-        id: response.data.id,
-        name: response.data.name,
-        unreadCount: response.data.messagesUnread,
-        totalCount: response.data.messagesTotal,
+        id: response.data.id!,
+        name: response.data.name!,
+        unreadCount: response.data.messagesUnread ?? undefined,
+        totalCount: response.data.messagesTotal ?? undefined,
       };
     } catch (error) {
       throw normalizeError(error, 'gmail');
@@ -420,8 +455,8 @@ export class GmailProvider implements IEmailProvider {
       });
 
       return {
-        id: response.data.id,
-        name: response.data.name,
+        id: response.data.id!,
+        name: response.data.name!,
       };
     } catch (error) {
       throw normalizeError(error, 'gmail');
@@ -449,10 +484,11 @@ export class GmailProvider implements IEmailProvider {
         userId: 'me',
       });
 
-      return response.data.labels.map((label: any) => ({
-        id: label.id,
-        name: label.name,
-        color: label.color?.backgroundColor,
+      const labels = response.data.labels || [];
+      return labels.map((label: GmailLabel) => ({
+        id: label.id!,
+        name: label.name!,
+        color: label.color?.backgroundColor ?? undefined,
         type: label.type === 'system' ? 'system' : 'user',
       }));
     } catch (error) {
@@ -490,7 +526,7 @@ export class GmailProvider implements IEmailProvider {
 
   async createLabel(name: string, color?: string): Promise<EmailLabel> {
     try {
-      const requestBody: any = {
+      const requestBody: GmailLabelCreateRequest = {
         name,
         labelListVisibility: 'labelShow',
         messageListVisibility: 'show',
@@ -507,9 +543,9 @@ export class GmailProvider implements IEmailProvider {
       });
 
       return {
-        id: response.data.id,
-        name: response.data.name,
-        color: response.data.color?.backgroundColor,
+        id: response.data.id!,
+        name: response.data.name!,
+        color: response.data.color?.backgroundColor ?? undefined,
         type: 'user',
       };
     } catch (error) {
@@ -530,7 +566,7 @@ export class GmailProvider implements IEmailProvider {
       // Oranges
       '#ff8800': { backgroundColor: '#ffc8af', textColor: '#ffffff' },
       '#ffc8af': { backgroundColor: '#ffc8af', textColor: '#594c05' },
-      // Yellows  
+      // Yellows
       '#ffff00': { backgroundColor: '#fad165', textColor: '#594c05' },
       '#fad165': { backgroundColor: '#fad165', textColor: '#594c05' },
       // Greens
@@ -568,11 +604,12 @@ export class GmailProvider implements IEmailProvider {
         return { r, g, b };
       };
 
-      const colorDistance = (c1: { r: number, g: number, b: number }, c2: { r: number, g: number, b: number }) => {
+      const colorDistance = (
+        c1: { r: number; g: number; b: number },
+        c2: { r: number; g: number; b: number }
+      ) => {
         return Math.sqrt(
-          Math.pow(c1.r - c2.r, 2) +
-          Math.pow(c1.g - c2.g, 2) +
-          Math.pow(c1.b - c2.b, 2)
+          Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2)
         );
       };
 
@@ -600,7 +637,7 @@ export class GmailProvider implements IEmailProvider {
   // Batch Operations
   async batchOperation(options: BatchOperationOptions): Promise<void> {
     try {
-      const batchRequests = options.emailIds.map((emailId) => {
+      const batchRequests = options.emailIds.map(emailId => {
         switch (options.operation) {
           case 'delete':
             return this.deleteEmail(emailId);

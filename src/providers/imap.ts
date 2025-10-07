@@ -28,15 +28,13 @@ export class ImapProvider implements IEmailProvider {
   private connected: boolean = false;
 
   constructor(private config: ImapConfig) {
-    this.imap = new Imap(config.imap);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    this.imap = new (Imap as any)(config.imap);
     this.smtp = nodemailer.createTransport({
       host: config.smtp.host,
       port: config.smtp.port,
       secure: config.smtp.secure !== false,
-      auth: {
-        user: config.smtp.user,
-        pass: config.smtp.password,
-      },
+      auth: config.smtp.auth,
     });
   }
 
@@ -60,7 +58,7 @@ export class ImapProvider implements IEmailProvider {
   private async disconnect(): Promise<void> {
     if (!this.connected) return;
 
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       this.imap.end();
       this.connected = false;
       resolve();
@@ -79,14 +77,14 @@ export class ImapProvider implements IEmailProvider {
   async sendEmail(options: SendEmailOptions): Promise<EmailMessage> {
     try {
       const mailOptions = {
-        from: `${this.config.smtp.user}`,
+        from: `${this.config.smtp.auth.user}`,
         to: options.to.map(this.formatEmailAddress).join(', '),
         cc: options.cc?.map(this.formatEmailAddress).join(', '),
         bcc: options.bcc?.map(this.formatEmailAddress).join(', '),
         subject: options.subject,
         text: options.body,
         html: options.htmlBody,
-        attachments: options.attachments?.map((att) => ({
+        attachments: options.attachments?.map(att => ({
           filename: att.filename,
           content: att.content,
           contentType: att.contentType,
@@ -416,7 +414,7 @@ export class ImapProvider implements IEmailProvider {
   // Batch Operations
   async batchOperation(options: BatchOperationOptions): Promise<void> {
     try {
-      const operations = options.emailIds.map((emailId) => {
+      const operations = options.emailIds.map(emailId => {
         switch (options.operation) {
           case 'delete':
             return this.deleteEmail(emailId);
@@ -444,7 +442,7 @@ export class ImapProvider implements IEmailProvider {
         emailId,
         folderId: 'Archive',
       });
-    } catch (error) {
+    } catch {
       // If Archive folder doesn't exist, just remove from INBOX
       await this.connect();
       await this.openBox('INBOX');
@@ -464,7 +462,7 @@ export class ImapProvider implements IEmailProvider {
         emailId,
         folderId: 'Trash',
       });
-    } catch (error) {
+    } catch {
       // Fallback to delete
       await this.deleteEmail(emailId);
     }
@@ -475,8 +473,8 @@ export class ImapProvider implements IEmailProvider {
     return addr.name ? `${addr.name} <${addr.email}>` : addr.email;
   }
 
-  private buildSearchCriteria(options: ListEmailsOptions): any[] {
-    const criteria: any[] = ['ALL'];
+  private buildSearchCriteria(options: ListEmailsOptions): Array<string | string[]> {
+    const criteria: Array<string | string[]> = ['ALL'];
 
     if (options.unreadOnly) {
       return ['UNSEEN'];
@@ -501,23 +499,29 @@ export class ImapProvider implements IEmailProvider {
           }
         : undefined,
       to:
-        parsed.to?.value.map((addr) => ({
-          email: addr.address || '',
-          name: addr.name,
-        })) || [],
+        (Array.isArray(parsed.to)
+          ? []
+          : parsed.to?.value.map((addr: { address?: string; name?: string }) => ({
+              email: addr.address || '',
+              name: addr.name,
+            }))) || [],
       cc:
-        parsed.cc?.value.map((addr) => ({
-          email: addr.address || '',
-          name: addr.name,
-        })) || [],
+        (Array.isArray(parsed.cc)
+          ? []
+          : parsed.cc?.value.map((addr: { address?: string; name?: string }) => ({
+              email: addr.address || '',
+              name: addr.name,
+            }))) || [],
       body: parsed.text || '',
       htmlBody: parsed.html ? parsed.html.toString() : undefined,
-      attachments: parsed.attachments?.map((att) => ({
-        filename: att.filename || 'attachment',
-        content: att.content,
-        contentType: att.contentType,
-        size: att.size,
-      })),
+      attachments: parsed.attachments?.map(
+        (att: { filename?: string; content: Buffer; contentType: string; size: number }) => ({
+          filename: att.filename || 'attachment',
+          content: att.content,
+          contentType: att.contentType,
+          size: att.size,
+        })
+      ),
       date: parsed.date || new Date(),
       isRead: false, // IMAP flags would need separate fetch
     };

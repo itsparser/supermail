@@ -9,7 +9,6 @@ import {
   ListEmailsResponse,
   EmailFolder,
   EmailLabel,
-  EmailCategory,
   MoveEmailOptions,
   AddLabelsOptions,
   RemoveLabelsOptions,

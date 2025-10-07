@@ -37,7 +37,7 @@ export class SuperMailError extends Error {
     public code: ErrorCode,
     message: string,
     public provider?: string,
-    public originalError?: any
+    public originalError?: Error | unknown
   ) {
     super(message);
     this.name = 'SuperMailError';
@@ -50,13 +50,14 @@ export class SuperMailError extends Error {
       code: this.code,
       message: this.message,
       provider: this.provider,
-      originalError: this.originalError?.message || this.originalError,
+      originalError:
+        this.originalError instanceof Error ? this.originalError.message : this.originalError,
     };
   }
 }
 
 export class AuthenticationError extends SuperMailError {
-  constructor(message: string, provider?: string, originalError?: any) {
+  constructor(message: string, provider?: string, originalError?: Error | unknown) {
     super(ErrorCode.AUTH_FAILED, message, provider, originalError);
     this.name = 'AuthenticationError';
   }
@@ -67,7 +68,7 @@ export class RateLimitError extends SuperMailError {
     message: string,
     provider?: string,
     public retryAfter?: number,
-    originalError?: any
+    originalError?: Error | unknown
   ) {
     super(ErrorCode.RATE_LIMIT_EXCEEDED, message, provider, originalError);
     this.name = 'RateLimitError';
@@ -79,7 +80,7 @@ export class NotFoundError extends SuperMailError {
     message: string,
     provider?: string,
     public resourceId?: string,
-    originalError?: any
+    originalError?: Error | unknown
   ) {
     super(ErrorCode.NOT_FOUND, message, provider, originalError);
     this.name = 'NotFoundError';
@@ -90,7 +91,7 @@ export class ValidationError extends SuperMailError {
   constructor(
     message: string,
     public field?: string,
-    originalError?: any
+    originalError?: Error | unknown
   ) {
     super(ErrorCode.INVALID_INPUT, message, undefined, originalError);
     this.name = 'ValidationError';
@@ -100,10 +101,11 @@ export class ValidationError extends SuperMailError {
 /**
  * Helper function to normalize provider-specific errors
  */
-export function normalizeError(error: any, provider: string): SuperMailError {
-  // Gmail errors (Google API)
+export function normalizeError(error: unknown, provider: string): SuperMailError {
+  const err = error as Record<string, unknown>;
   if (provider === 'gmail') {
-    const statusCode = error.code || error.response?.status;
+    const response = err.response as Record<string, unknown> | undefined;
+    const statusCode = (err.code as number) || (response?.status as number);
 
     if (statusCode === 401) {
       return new AuthenticationError(
@@ -123,16 +125,12 @@ export function normalizeError(error: any, provider: string): SuperMailError {
     }
 
     if (statusCode === 404) {
-      return new NotFoundError(
-        'Email not found in Gmail.',
-        provider,
-        undefined,
-        error
-      );
+      return new NotFoundError('Email not found in Gmail.', provider, undefined, error);
     }
 
     if (statusCode === 429) {
-      const retryAfter = error.response?.headers?.['retry-after'];
+      const headers = response?.headers as Record<string, string> | undefined;
+      const retryAfter = headers?.['retry-after'];
       return new RateLimitError(
         'Gmail rate limit exceeded.',
         provider,
@@ -144,8 +142,10 @@ export function normalizeError(error: any, provider: string): SuperMailError {
 
   // Microsoft Graph errors
   if (provider === 'microsoft') {
-    const statusCode = error.statusCode || error.code;
-    const errorCode = error.code || error.body?.error?.code;
+    const body = err.body as Record<string, unknown> | undefined;
+    const bodyError = body?.error as Record<string, unknown> | undefined;
+    const statusCode = (err.statusCode as number) || (err.code as number);
+    const errorCode = (err.code as string) || (bodyError?.code as string);
 
     if (statusCode === 401 || errorCode === 'InvalidAuthenticationToken') {
       return new AuthenticationError(
@@ -165,16 +165,12 @@ export function normalizeError(error: any, provider: string): SuperMailError {
     }
 
     if (statusCode === 404 || errorCode === 'ResourceNotFound') {
-      return new NotFoundError(
-        'Email not found in Microsoft.',
-        provider,
-        undefined,
-        error
-      );
+      return new NotFoundError('Email not found in Microsoft.', provider, undefined, error);
     }
 
     if (statusCode === 429 || errorCode === 'TooManyRequests') {
-      const retryAfter = error.headers?.['retry-after'];
+      const headers = err.headers as Record<string, string> | undefined;
+      const retryAfter = headers?.['retry-after'];
       return new RateLimitError(
         'Microsoft rate limit exceeded.',
         provider,
@@ -185,20 +181,18 @@ export function normalizeError(error: any, provider: string): SuperMailError {
   }
 
   // Network errors
-  if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ETIMEDOUT') {
+  const code = err.code as string;
+  if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT') {
+    const message = err.message as string;
     return new SuperMailError(
       ErrorCode.NETWORK_ERROR,
-      `Network error: ${error.message}`,
+      `Network error: ${message}`,
       provider,
       error
     );
   }
 
   // Default unknown error
-  return new SuperMailError(
-    ErrorCode.UNKNOWN_ERROR,
-    error.message || 'An unknown error occurred',
-    provider,
-    error
-  );
+  const message = (err.message as string) || 'An unknown error occurred';
+  return new SuperMailError(ErrorCode.UNKNOWN_ERROR, message, provider, error);
 }

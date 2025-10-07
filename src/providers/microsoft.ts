@@ -20,12 +20,85 @@ import {
   SendEmailOptions,
 } from '../types';
 
+// Microsoft Graph API types
+interface GraphRecipient {
+  emailAddress?: {
+    address?: string;
+    name?: string;
+  };
+}
+
+interface GraphAttachment {
+  id?: string;
+  name?: string;
+  contentType?: string;
+  size?: number;
+  contentBytes?: string;
+}
+
+interface GraphMessage {
+  id?: string;
+  subject?: string;
+  from?: GraphRecipient;
+  toRecipients?: GraphRecipient[];
+  ccRecipients?: GraphRecipient[];
+  bccRecipients?: GraphRecipient[];
+  body?: {
+    contentType?: string;
+    content?: string;
+  };
+  hasAttachments?: boolean;
+  attachments?: GraphAttachment[];
+  receivedDateTime?: string;
+  isRead?: boolean;
+  conversationId?: string;
+  categories?: string[];
+}
+
+interface GraphMailFolder {
+  id: string;
+  displayName: string;
+  parentFolderId?: string;
+  unreadItemCount?: number;
+  totalItemCount?: number;
+}
+
+interface GraphCategory {
+  id: string;
+  displayName: string;
+  color?: string;
+  preset?: boolean;
+}
+
+interface GraphListResponse<T> {
+  value: T[];
+  '@odata.nextLink'?: string;
+  '@odata.count'?: number;
+}
+
+interface GraphMessageToSend {
+  subject: string;
+  body: {
+    contentType: 'HTML' | 'Text';
+    content: string;
+  };
+  toRecipients: GraphRecipient[];
+  ccRecipients: GraphRecipient[];
+  bccRecipients: GraphRecipient[];
+  attachments: Array<{
+    '@odata.type': string;
+    name: string;
+    contentType: string;
+    contentBytes: string;
+  }>;
+}
+
 export class MicrosoftProvider implements IEmailProvider {
   private client: Client;
 
   constructor(private config: MicrosoftConfig) {
     this.client = Client.init({
-      authProvider: (done) => {
+      authProvider: done => {
         done(null, config.accessToken || '');
       },
     });
@@ -35,12 +108,10 @@ export class MicrosoftProvider implements IEmailProvider {
     try {
       const message = this.convertToGraphMessage(options);
 
-      await this.client
-        .api('/me/sendMail')
-        .post({
-          message,
-          saveToSentItems: true,
-        });
+      await this.client.api('/me/sendMail').post({
+        message,
+        saveToSentItems: true,
+      });
 
       // Graph API doesn't return the sent message, so we create a representation
       return {
@@ -80,9 +151,9 @@ export class MicrosoftProvider implements IEmailProvider {
         endpoint += `?${queryParams.join('&')}`;
       }
 
-      const response = await this.client.api(endpoint).get();
+      const response = (await this.client.api(endpoint).get()) as GraphListResponse<GraphMessage>;
 
-      const messages = response.value.map((msg: any) => this.convertGraphMessage(msg));
+      const messages = response.value.map(msg => this.convertGraphMessage(msg));
 
       return {
         messages,
@@ -96,9 +167,7 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async getEmail(emailId: string): Promise<EmailMessage> {
     try {
-      const response = await this.client
-        .api(`/me/messages/${emailId}`)
-        .get();
+      const response = await this.client.api(`/me/messages/${emailId}`).get();
 
       return this.convertGraphMessage(response);
     } catch (error) {
@@ -108,9 +177,7 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async deleteEmail(emailId: string): Promise<void> {
     try {
-      await this.client
-        .api(`/me/messages/${emailId}`)
-        .delete();
+      await this.client.api(`/me/messages/${emailId}`).delete();
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -118,11 +185,9 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async markAsRead(emailId: string): Promise<void> {
     try {
-      await this.client
-        .api(`/me/messages/${emailId}`)
-        .patch({
-          isRead: true,
-        });
+      await this.client.api(`/me/messages/${emailId}`).patch({
+        isRead: true,
+      });
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -130,11 +195,9 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async markAsUnread(emailId: string): Promise<void> {
     try {
-      await this.client
-        .api(`/me/messages/${emailId}`)
-        .patch({
-          isRead: false,
-        });
+      await this.client.api(`/me/messages/${emailId}`).patch({
+        isRead: false,
+      });
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -148,18 +211,14 @@ export class MicrosoftProvider implements IEmailProvider {
 
       if (hasAttachments || options.htmlBody) {
         // Use full message object for complex replies
-        await this.client
-          .api(`/me/messages/${emailId}/reply`)
-          .post({
-            message: this.convertToGraphMessage(options),
-          });
+        await this.client.api(`/me/messages/${emailId}/reply`).post({
+          message: this.convertToGraphMessage(options),
+        });
       } else {
         // Use simple comment for text-only replies
-        await this.client
-          .api(`/me/messages/${emailId}/reply`)
-          .post({
-            comment: options.body,
-          });
+        await this.client.api(`/me/messages/${emailId}/reply`).post({
+          comment: options.body,
+        });
       }
 
       return {
@@ -175,7 +234,7 @@ export class MicrosoftProvider implements IEmailProvider {
     }
   }
 
-  private convertToGraphMessage(options: SendEmailOptions): any {
+  private convertToGraphMessage(options: SendEmailOptions): GraphMessageToSend {
     return {
       subject: options.subject,
       body: {
@@ -185,16 +244,17 @@ export class MicrosoftProvider implements IEmailProvider {
       toRecipients: options.to.map(this.convertToGraphRecipient),
       ccRecipients: options.cc?.map(this.convertToGraphRecipient) || [],
       bccRecipients: options.bcc?.map(this.convertToGraphRecipient) || [],
-      attachments: options.attachments?.map(att => ({
-        '@odata.type': '#microsoft.graph.fileAttachment',
-        name: att.filename,
-        contentType: att.contentType,
-        contentBytes: Buffer.from(att.content).toString('base64'),
-      })) || [],
+      attachments:
+        options.attachments?.map(att => ({
+          '@odata.type': '#microsoft.graph.fileAttachment',
+          name: att.filename,
+          contentType: att.contentType,
+          contentBytes: Buffer.from(att.content).toString('base64'),
+        })) || [],
     };
   }
 
-  private convertToGraphRecipient(addr: EmailAddress): any {
+  private convertToGraphRecipient(addr: EmailAddress): GraphRecipient {
     return {
       emailAddress: {
         address: addr.email,
@@ -203,31 +263,31 @@ export class MicrosoftProvider implements IEmailProvider {
     };
   }
 
-  private convertGraphMessage(graphMsg: any): EmailMessage {
+  private convertGraphMessage(graphMsg: GraphMessage): EmailMessage {
     return {
       id: graphMsg.id,
-      subject: graphMsg.subject,
+      subject: graphMsg.subject || '',
       from: this.convertFromGraphRecipient(graphMsg.from),
-      to: graphMsg.toRecipients?.map(this.convertFromGraphRecipient) || [],
-      cc: graphMsg.ccRecipients?.map(this.convertFromGraphRecipient) || [],
+      to: graphMsg.toRecipients?.map(r => this.convertFromGraphRecipient(r)) || [],
+      cc: graphMsg.ccRecipients?.map(r => this.convertFromGraphRecipient(r)) || [],
       body: graphMsg.body?.content || '',
       htmlBody: graphMsg.body?.contentType === 'html' ? graphMsg.body?.content : undefined,
       attachments: graphMsg.hasAttachments
-        ? graphMsg.attachments?.map((att: any) => ({
-          filename: att.name,
-          contentType: att.contentType,
-          size: att.size,
-          attachmentId: att.id,
-        }))
+        ? graphMsg.attachments?.map(att => ({
+            filename: att.name || '',
+            contentType: att.contentType || 'application/octet-stream',
+            content: att.contentBytes || '',
+            size: att.size,
+          }))
         : undefined,
-      date: new Date(graphMsg.receivedDateTime),
+      date: graphMsg.receivedDateTime ? new Date(graphMsg.receivedDateTime) : new Date(),
       isRead: graphMsg.isRead,
       threadId: graphMsg.conversationId,
       labels: graphMsg.categories || [],
     };
   }
 
-  private convertFromGraphRecipient(recipient: any): EmailAddress {
+  private convertFromGraphRecipient(recipient?: GraphRecipient): EmailAddress {
     if (!recipient) return { email: '' };
 
     return {
@@ -239,9 +299,11 @@ export class MicrosoftProvider implements IEmailProvider {
   // Folder Management
   async listFolders(): Promise<EmailFolder[]> {
     try {
-      const response = await this.client.api('/me/mailFolders').get();
+      const response = (await this.client
+        .api('/me/mailFolders')
+        .get()) as GraphListResponse<GraphMailFolder>;
 
-      return response.value.map((folder: any) => ({
+      return response.value.map(folder => ({
         id: folder.id,
         name: folder.displayName,
         parentId: folder.parentFolderId,
@@ -271,9 +333,7 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async createFolder(name: string, parentId?: string): Promise<EmailFolder> {
     try {
-      const endpoint = parentId
-        ? `/me/mailFolders/${parentId}/childFolders`
-        : '/me/mailFolders';
+      const endpoint = parentId ? `/me/mailFolders/${parentId}/childFolders` : '/me/mailFolders';
 
       const response = await this.client.api(endpoint).post({
         displayName: name,
@@ -291,11 +351,9 @@ export class MicrosoftProvider implements IEmailProvider {
 
   async moveToFolder(options: MoveEmailOptions): Promise<void> {
     try {
-      await this.client
-        .api(`/me/messages/${options.emailId}/move`)
-        .post({
-          destinationId: options.folderId,
-        });
+      await this.client.api(`/me/messages/${options.emailId}/move`).post({
+        destinationId: options.folderId,
+      });
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -304,13 +362,15 @@ export class MicrosoftProvider implements IEmailProvider {
   // Category Management (Microsoft's equivalent to labels)
   async listLabels(): Promise<EmailLabel[]> {
     try {
-      const response = await this.client.api('/me/outlook/masterCategories').get();
+      const response = (await this.client
+        .api('/me/outlook/masterCategories')
+        .get()) as GraphListResponse<GraphCategory>;
 
-      return response.value.map((category: any) => ({
+      return response.value.map(category => ({
         id: category.id,
         name: category.displayName,
         color: category.color,
-        type: category.preset ? 'system' : 'user',
+        type: category.preset ? ('system' as const) : ('user' as const),
       }));
     } catch (error) {
       throw normalizeError(error, 'microsoft');
@@ -325,11 +385,9 @@ export class MicrosoftProvider implements IEmailProvider {
         .map(id => categories.find(c => c.id === id)?.name)
         .filter(Boolean);
 
-      await this.client
-        .api(`/me/messages/${options.emailId}`)
-        .patch({
-          categories: categoryNames,
-        });
+      await this.client.api(`/me/messages/${options.emailId}`).patch({
+        categories: categoryNames,
+      });
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -348,15 +406,11 @@ export class MicrosoftProvider implements IEmailProvider {
         .filter(Boolean);
 
       // Filter out categories to remove
-      const updatedCategories = currentCategories.filter(
-        cat => !categoriesToRemove.includes(cat)
-      );
+      const updatedCategories = currentCategories.filter(cat => !categoriesToRemove.includes(cat));
 
-      await this.client
-        .api(`/me/messages/${options.emailId}`)
-        .patch({
-          categories: updatedCategories,
-        });
+      await this.client.api(`/me/messages/${options.emailId}`).patch({
+        categories: updatedCategories,
+      });
     } catch (error) {
       throw normalizeError(error, 'microsoft');
     }
@@ -395,16 +449,16 @@ export class MicrosoftProvider implements IEmailProvider {
 
     // Map hex colors to closest Microsoft preset
     const colorMap: { [key: string]: string } = {
-      '#ff0000': 'preset0',  // Red
-      '#ff4500': 'preset1',  // Orange
-      '#8b4513': 'preset2',  // Brown
-      '#ffff00': 'preset3',  // Yellow
-      '#008000': 'preset4',  // Green
-      '#008080': 'preset5',  // Teal
-      '#808000': 'preset6',  // Olive
-      '#0000ff': 'preset7',  // Blue
-      '#800080': 'preset8',  // Purple
-      '#9b2d30': 'preset9',  // Cranberry
+      '#ff0000': 'preset0', // Red
+      '#ff4500': 'preset1', // Orange
+      '#8b4513': 'preset2', // Brown
+      '#ffff00': 'preset3', // Yellow
+      '#008000': 'preset4', // Green
+      '#008080': 'preset5', // Teal
+      '#808000': 'preset6', // Olive
+      '#0000ff': 'preset7', // Blue
+      '#800080': 'preset8', // Purple
+      '#9b2d30': 'preset9', // Cranberry
       '#5a7e9f': 'preset10', // Steel
       '#485c69': 'preset11', // DarkSteel
       '#808080': 'preset12', // Gray
@@ -438,11 +492,12 @@ export class MicrosoftProvider implements IEmailProvider {
         return { r, g, b };
       };
 
-      const colorDistance = (c1: { r: number, g: number, b: number }, c2: { r: number, g: number, b: number }) => {
+      const colorDistance = (
+        c1: { r: number; g: number; b: number },
+        c2: { r: number; g: number; b: number }
+      ) => {
         return Math.sqrt(
-          Math.pow(c1.r - c2.r, 2) +
-          Math.pow(c1.g - c2.g, 2) +
-          Math.pow(c1.b - c2.b, 2)
+          Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2)
         );
       };
 
@@ -468,7 +523,7 @@ export class MicrosoftProvider implements IEmailProvider {
   // Batch Operations
   async batchOperation(options: BatchOperationOptions): Promise<void> {
     try {
-      const batchRequests = options.emailIds.map((emailId) => {
+      const batchRequests = options.emailIds.map(emailId => {
         switch (options.operation) {
           case 'delete':
             return this.deleteEmail(emailId);

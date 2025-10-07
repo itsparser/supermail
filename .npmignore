@@ -1,0 +1,32 @@
+# Source files
+src/
+examples/
+
+# Config files
+tsconfig.json
+.eslintrc.json
+.prettierrc.json
+.prettierignore
+
+# Development
+node_modules/
+.git/
+.gitignore
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.*
+
+# Misc
+FUTURE_SCOPE.md

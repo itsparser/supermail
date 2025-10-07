@@ -1,12 +1,34 @@
 {
   "name": "supermail",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Unified email interface for Gmail, Microsoft Graph, and IMAP/SMTP",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/itsparser/supermail.git"
+  },
+  "bugs": {
+    "url": "https://github.com/itsparser/supermail/issues"
+  },
+  "homepage": "https://github.com/itsparser/supermail#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
+    "lint": "eslint 'src/**/*.ts'",
+    "lint:fix": "eslint 'src/**/*.ts' --fix",
+    "format": "prettier --write 'src/**/*.ts'",
+    "format:check": "prettier --check 'src/**/*.ts'",
+    "check": "npm run format:check && npm run lint && npm run build",
+    "prepublishOnly": "npm run check",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -20,16 +42,25 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "googleapis": "^130.0.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
+    "googleapis": "^130.0.0",
     "imap": "^0.8.19",
     "mailparser": "^3.7.1",
     "nodemailer": "^6.9.15"
   },
   "devDependencies": {
-    "@types/node": "^20.10.6",
+    "@eslint/js": "^9.37.0",
     "@types/imap": "^0.8.40",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^20.10.6",
     "@types/nodemailer": "^6.4.16",
-    "typescript": "^5.3.3"
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
+    "typescript": "^5.3.3",
+    "typescript-eslint": "^8.46.0"
   }
 }

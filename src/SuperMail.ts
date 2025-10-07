@@ -5,6 +5,9 @@
 import { IEmailProvider } from './provider';
 import {
   EmailProviderConfig,
+  GmailConfig,
+  MicrosoftConfig,
+  ImapConfig,
   EmailMessage,
   SendEmailOptions,
   ListEmailsOptions,
@@ -18,6 +21,7 @@ import {
 } from './types';
 import { GmailProvider } from './providers/gmail';
 import { MicrosoftProvider } from './providers/microsoft';
+import { ImapProvider } from './providers/imap';
 
 export class SuperMail implements IEmailProvider {
   private provider: IEmailProvider;
@@ -29,11 +33,17 @@ export class SuperMail implements IEmailProvider {
   private createProvider(config: EmailProviderConfig): IEmailProvider {
     switch (config.type) {
       case 'gmail':
-        return new GmailProvider(config);
+        return new GmailProvider(config as GmailConfig);
       case 'microsoft':
-        return new MicrosoftProvider(config);
-      default:
-        throw new Error(`Unsupported provider type: ${(config as any).type}`);
+        return new MicrosoftProvider(config as MicrosoftConfig);
+      case 'imap':
+        return new ImapProvider(config as ImapConfig);
+      default: {
+        const exhaustiveCheck: never = config;
+        throw new Error(
+          `Unsupported provider type: ${(exhaustiveCheck as EmailProviderConfig).type}`
+        );
+      }
     }
   }
 
