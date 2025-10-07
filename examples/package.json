@@ -1,0 +1,21 @@
+{
+  "name": "supermail-examples",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Examples for @conv/supermail",
+  "scripts": {
+    "gmail": "tsx gmail-example.ts",
+    "microsoft": "tsx microsoft-example.ts",
+    "complete": "tsx complete-example.ts",
+    "complete:gmail": "PROVIDER=gmail tsx complete-example.ts",
+    "complete:microsoft": "PROVIDER=microsoft tsx complete-example.ts",
+    "generate:google-token": "tsx generate-google-token.ts"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

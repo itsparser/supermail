@@ -1,0 +1,10 @@
+# Environment variables
+.env
+
+# Dependencies
+node_modules/
+
+# TypeScript build outputs
+*.js
+*.d.ts
+*.js.map
