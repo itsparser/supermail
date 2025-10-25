@@ -3,24 +3,24 @@
  */
 
 import * as Imap from 'imap';
-import { simpleParser, ParsedMail } from 'mailparser';
+import { type ParsedMail, simpleParser } from 'mailparser';
 import * as nodemailer from 'nodemailer';
-import { IEmailProvider } from '../provider';
-import {
-  EmailMessage,
-  SendEmailOptions,
-  ListEmailsOptions,
-  ListEmailsResponse,
+import { ErrorCode, normalizeError, SuperMailError } from '../errors';
+import type { IEmailProvider } from '../provider';
+import type {
+  AddLabelsOptions,
+  BatchOperationOptions,
   EmailAddress,
-  ImapConfig,
   EmailFolder,
   EmailLabel,
+  EmailMessage,
+  ImapConfig,
+  ListEmailsOptions,
+  ListEmailsResponse,
   MoveEmailOptions,
-  AddLabelsOptions,
   RemoveLabelsOptions,
-  BatchOperationOptions,
+  SendEmailOptions,
 } from '../types';
-import { normalizeError, SuperMailError, ErrorCode } from '../errors';
 
 export class ImapProvider implements IEmailProvider {
   private imap: Imap;
@@ -52,16 +52,6 @@ export class ImapProvider implements IEmailProvider {
       });
 
       this.imap.connect();
-    });
-  }
-
-  private async disconnect(): Promise<void> {
-    if (!this.connected) return;
-
-    return new Promise(resolve => {
-      this.imap.end();
-      this.connected = false;
-      resolve();
     });
   }
 
@@ -182,7 +172,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        const fetch = this.imap.fetch([parseInt(emailId)], {
+        const fetch = this.imap.fetch([parseInt(emailId, 10)], {
           bodies: ['HEADER', 'TEXT'],
           struct: true,
         });
@@ -222,7 +212,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.addFlags([parseInt(emailId)], ['\\Deleted'], (err: Error) => {
+        this.imap.addFlags([parseInt(emailId, 10)], ['\\Deleted'], (err: Error) => {
           if (err) {
             reject(normalizeError(err, 'imap'));
           } else {
@@ -244,7 +234,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.addFlags([parseInt(emailId)], ['\\Seen'], (err: Error) => {
+        this.imap.addFlags([parseInt(emailId, 10)], ['\\Seen'], (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });
@@ -260,7 +250,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.delFlags([parseInt(emailId)], ['\\Seen'], (err: Error) => {
+        this.imap.delFlags([parseInt(emailId, 10)], ['\\Seen'], (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });
@@ -349,7 +339,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.move([parseInt(options.emailId)], options.folderId, (err: Error) => {
+        this.imap.move([parseInt(options.emailId, 10)], options.folderId, (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });
@@ -376,7 +366,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.addFlags([parseInt(options.emailId)], options.labelIds, (err: Error) => {
+        this.imap.addFlags([parseInt(options.emailId, 10)], options.labelIds, (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });
@@ -392,7 +382,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.delFlags([parseInt(options.emailId)], options.labelIds, (err: Error) => {
+        this.imap.delFlags([parseInt(options.emailId, 10)], options.labelIds, (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });
@@ -448,7 +438,7 @@ export class ImapProvider implements IEmailProvider {
       await this.openBox('INBOX');
 
       return new Promise((resolve, reject) => {
-        this.imap.addFlags([parseInt(emailId)], ['\\Deleted'], (err: Error) => {
+        this.imap.addFlags([parseInt(emailId, 10)], ['\\Deleted'], (err: Error) => {
           if (err) reject(normalizeError(err, 'imap'));
           else resolve();
         });

@@ -2,17 +2,17 @@
  * Base email provider interface
  */
 
-import {
-  EmailMessage,
-  SendEmailOptions,
-  ListEmailsOptions,
-  ListEmailsResponse,
+import type {
+  AddLabelsOptions,
+  BatchOperationOptions,
   EmailFolder,
   EmailLabel,
+  EmailMessage,
+  ListEmailsOptions,
+  ListEmailsResponse,
   MoveEmailOptions,
-  AddLabelsOptions,
   RemoveLabelsOptions,
-  BatchOperationOptions,
+  SendEmailOptions,
 } from './types';
 
 export interface IEmailProvider {

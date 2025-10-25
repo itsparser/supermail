@@ -2,12 +2,11 @@
  * Gmail provider implementation
  */
 
-import { google } from 'googleapis';
-import { gmail_v1 } from 'googleapis';
-import { OAuth2Client } from 'google-auth-library';
+import type { OAuth2Client } from 'google-auth-library';
+import { type gmail_v1, google } from 'googleapis';
 import { normalizeError } from '../errors';
-import { IEmailProvider } from '../provider';
-import {
+import type { IEmailProvider } from '../provider';
+import type {
   AddLabelsOptions,
   BatchOperationOptions,
   EmailAddress,
@@ -43,7 +42,7 @@ export class GmailProvider implements IEmailProvider {
   private gmail: gmail_v1.Gmail;
   private auth: OAuth2Client;
 
-  constructor(private config: GmailConfig) {
+  constructor(config: GmailConfig) {
     const credentials = config.credentials as Record<string, unknown>;
     this.auth = new google.auth.OAuth2(
       credentials.client_id as string,
@@ -224,7 +223,7 @@ export class GmailProvider implements IEmailProvider {
   }
 
   private createMimeMessage(options: SendEmailOptions, _threadId?: string): string {
-    const boundary = '----=_Part_' + Date.now();
+    const boundary = `----=_Part_${Date.now()}`;
     const hasAttachments = options.attachments && options.attachments.length > 0;
     const contentType = hasAttachments
       ? `multipart/mixed; boundary="${boundary}"`
@@ -245,7 +244,7 @@ export class GmailProvider implements IEmailProvider {
 
     if (hasAttachments) {
       // Create nested boundary for text/html content
-      const innerBoundary = '----=_Part_Inner_' + Date.now();
+      const innerBoundary = `----=_Part_Inner_${Date.now()}`;
       body += `--${boundary}\r\n`;
       body += `Content-Type: multipart/alternative; boundary="${innerBoundary}"\r\n\r\n`;
 
@@ -329,7 +328,7 @@ export class GmailProvider implements IEmailProvider {
       cc: this.parseEmailAddresses(getHeader('cc') ?? undefined),
       body: gmailMsg.payload ? this.extractBody(gmailMsg.payload) : '',
       attachments: gmailMsg.payload ? this.extractAttachments(gmailMsg.payload) : undefined,
-      date: gmailMsg.internalDate ? new Date(parseInt(gmailMsg.internalDate)) : undefined,
+      date: gmailMsg.internalDate ? new Date(parseInt(gmailMsg.internalDate, 10)) : undefined,
       isRead: !gmailMsg.labelIds?.includes('UNREAD'),
       labels: gmailMsg.labelIds || [],
     };
@@ -608,9 +607,7 @@ export class GmailProvider implements IEmailProvider {
         c1: { r: number; g: number; b: number },
         c2: { r: number; g: number; b: number }
       ) => {
-        return Math.sqrt(
-          Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2)
-        );
+        return Math.sqrt((c1.r - c2.r) ** 2 + (c1.g - c2.g) ** 2 + (c1.b - c2.b) ** 2);
       };
 
       const targetRgb = hexToRgb(normalizedColor);

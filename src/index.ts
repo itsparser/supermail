@@ -40,10 +40,9 @@
  * ```
  */
 
+export * from './errors';
 export { IEmailProvider } from './provider';
 export { GmailProvider } from './providers/gmail';
 export { MicrosoftProvider } from './providers/microsoft';
 export { SuperMail } from './SuperMail';
-
-export * from './errors';
 export * from './types';
