@@ -134,7 +134,7 @@ export function normalizeError(error: unknown, provider: string): SuperMailError
       return new RateLimitError(
         'Gmail rate limit exceeded.',
         provider,
-        retryAfter ? parseInt(retryAfter) : undefined,
+        retryAfter ? parseInt(retryAfter, 10) : undefined,
         error
       );
     }
@@ -174,7 +174,7 @@ export function normalizeError(error: unknown, provider: string): SuperMailError
       return new RateLimitError(
         'Microsoft rate limit exceeded.',
         provider,
-        retryAfter ? parseInt(retryAfter) : undefined,
+        retryAfter ? parseInt(retryAfter, 10) : undefined,
         error
       );
     }

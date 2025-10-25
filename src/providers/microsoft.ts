@@ -4,8 +4,8 @@
 
 import { Client } from '@microsoft/microsoft-graph-client';
 import { normalizeError } from '../errors';
-import { IEmailProvider } from '../provider';
-import {
+import type { IEmailProvider } from '../provider';
+import type {
   AddLabelsOptions,
   BatchOperationOptions,
   EmailAddress,
@@ -96,7 +96,7 @@ interface GraphMessageToSend {
 export class MicrosoftProvider implements IEmailProvider {
   private client: Client;
 
-  constructor(private config: MicrosoftConfig) {
+  constructor(config: MicrosoftConfig) {
     this.client = Client.init({
       authProvider: done => {
         done(null, config.accessToken || '');
@@ -496,9 +496,7 @@ export class MicrosoftProvider implements IEmailProvider {
         c1: { r: number; g: number; b: number },
         c2: { r: number; g: number; b: number }
       ) => {
-        return Math.sqrt(
-          Math.pow(c1.r - c2.r, 2) + Math.pow(c1.g - c2.g, 2) + Math.pow(c1.b - c2.b, 2)
-        );
+        return Math.sqrt((c1.r - c2.r) ** 2 + (c1.g - c2.g) ** 2 + (c1.b - c2.b) ** 2);
       };
 
       const targetRgb = hexToRgb(normalizedColor);

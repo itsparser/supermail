@@ -2,26 +2,26 @@
  * SuperMail - Unified email client for Gmail and Microsoft Graph
  */
 
-import { IEmailProvider } from './provider';
-import {
-  EmailProviderConfig,
-  GmailConfig,
-  MicrosoftConfig,
-  ImapConfig,
-  EmailMessage,
-  SendEmailOptions,
-  ListEmailsOptions,
-  ListEmailsResponse,
+import type { IEmailProvider } from './provider';
+import { GmailProvider } from './providers/gmail';
+import { ImapProvider } from './providers/imap';
+import { MicrosoftProvider } from './providers/microsoft';
+import type {
+  AddLabelsOptions,
+  BatchOperationOptions,
   EmailFolder,
   EmailLabel,
+  EmailMessage,
+  EmailProviderConfig,
+  GmailConfig,
+  ImapConfig,
+  ListEmailsOptions,
+  ListEmailsResponse,
+  MicrosoftConfig,
   MoveEmailOptions,
-  AddLabelsOptions,
   RemoveLabelsOptions,
-  BatchOperationOptions,
+  SendEmailOptions,
 } from './types';
-import { GmailProvider } from './providers/gmail';
-import { MicrosoftProvider } from './providers/microsoft';
-import { ImapProvider } from './providers/imap';
 
 export class SuperMail implements IEmailProvider {
   private provider: IEmailProvider;
